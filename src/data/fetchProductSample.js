@@ -12,14 +12,24 @@ export async function fetchProductsByFamily(familyCode) {
 
   const all = [];
   let page = 1;
+  let useCompletenesses = true;
 
   while (true) {
-    const response = await globalThis.PIM.api.product_uuid_v1.list({
-      search: searchFilter,
-      page,
-      limit: 100,
-      withCompletenesses: true,
-    });
+    let response;
+    try {
+      response = await globalThis.PIM.api.product_uuid_v1.list({
+        search: searchFilter,
+        page,
+        limit: 100,
+        ...(useCompletenesses && { withCompletenesses: true }),
+      });
+    } catch (err) {
+      if (useCompletenesses && /422/.test(err?.message ?? '')) {
+        useCompletenesses = false;
+        continue;
+      }
+      throw err;
+    }
     const items = response.items ?? [];
     all.push(...items);
     if (items.length === 0 || !response.links?.next) break;
