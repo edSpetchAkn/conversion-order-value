@@ -39,6 +39,7 @@ export const CONFIG = {
   metrics: {
     completeness: {
       key: 'completeness',
+      pillar: 'Data Model',
       label: '% of Products with 100% Completeness',
       description: 'What % of your products currently pass your completeness check for every locale on this channel?',
       thresholds: { red: 70, green: 90 },
@@ -49,6 +50,7 @@ export const CONFIG = {
     },
     categorised: {
       key: 'categorised',
+      pillar: 'Data Model',
       label: '% of Products Categorised',
       description: 'What % of your products are assigned to at least one category?',
       thresholds: { red: 70, green: 90 },
@@ -59,6 +61,7 @@ export const CONFIG = {
     },
     structuredTypes: {
       key: 'structuredTypes',
+      pillar: 'Data Model',
       label: '% of Attributes Using Structured Types',
       description:
         'What % of your catalogue attributes use machine-parseable structured types (date, identifier, measurement, multi-select, number, price, reference entity links, simple select, table, yes/no) rather than free text?',
@@ -70,6 +73,7 @@ export const CONFIG = {
     },
     hasParent: {
       key: 'hasParent',
+      pillar: 'Data Model',
       label: '% of Products with a Product Model Parent',
       description: 'What % of your products are variants linked to a product model parent?',
       thresholds: { red: 70, green: 90 },
@@ -80,6 +84,7 @@ export const CONFIG = {
     },
     hasAssociation: {
       key: 'hasAssociation',
+      pillar: 'Data Model',
       label: '% of Products with Associations',
       description: 'What % of your products have at least one product link attribute or association populated?',
       thresholds: { red: 50, green: 70 },
@@ -90,6 +95,7 @@ export const CONFIG = {
     },
     hasAssetCollection: {
       key: 'hasAssetCollection',
+      pillar: 'Data Model',
       label: '% of Products with Asset Collections',
       description: 'What % of your products have at least one asset collection attribute with media assets linked?',
       thresholds: { red: 80, green: 100 },
