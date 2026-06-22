@@ -61,21 +61,26 @@ export function renderMetricCard(result, metricKey, config, labelOverride) {
     minWidth: '0',
   });
 
-  // ── Traffic light + percentage row ──
+  // ── Pillar chip + percentage row ──
   const topRow = el('div', {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
   });
 
-  const light = el('div', {
-    width: '14px',
-    height: '14px',
-    borderRadius: '50%',
-    background: color,
+  const pillar = metricConfig.pillar;
+  const pillarChip = el('span', {
+    fontSize: '10px',
+    fontWeight: '700',
+    padding: '3px 8px',
+    borderRadius: '10px',
+    background: pillar === 'Automation' ? '#f0ebff' : '#e6f4ff',
+    color: pillar === 'Automation' ? '#9452ba' : '#0070cc',
+    letterSpacing: '0.3px',
+    textTransform: 'uppercase',
+    whiteSpace: 'nowrap',
     flexShrink: '0',
-    boxShadow: `0 0 0 4px ${lightBg}, 0 0 0 5px ${color}33`,
-  });
+  }, pillar);
 
   const pctDisplay = el('div', {
     fontSize: '32px',
@@ -86,7 +91,7 @@ export function renderMetricCard(result, metricKey, config, labelOverride) {
   });
   pctDisplay.textContent = result.percentage !== null ? `${result.percentage}%` : 'N/A';
 
-  topRow.appendChild(light);
+  topRow.appendChild(pillarChip);
   topRow.appendChild(pctDisplay);
   card.appendChild(topRow);
 
