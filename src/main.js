@@ -12,14 +12,17 @@
 
 import { CONFIG } from './config.js';
 import { debugLog, debugError, debugTime, debugTimeEnd } from './utils/logger.js';
-import { fetchProductsByFamily } from './data/fetchProductSample.js';
-import { fetchAttributeList } from './data/fetchAttributeList.js';
-import { calculate as calculateCompleteness }     from './metrics/completeness.js';
-import { calculate as calculateCategorised }      from './metrics/categorised.js';
-import { calculate as calculateStructuredTypes }  from './metrics/structuredTypes.js';
-import { calculate as calculateHasParent }        from './metrics/hasParent.js';
-import { calculate as calculateHasAssociation }   from './metrics/hasAssociation.js';
-import { calculate as calculateHasAssetCollection } from './metrics/hasAssetCollection.js';
+import {
+  fetchProducts,
+  fetchAttributes,
+  fetchFamilies,
+  calculateCompleteness,
+  calculateCategorised,
+  calculateStructuredAttributeTypes,
+  calculateHasParent,
+  calculateAssociations,
+  calculateAssetCollections,
+} from '@akeneo/maturity-metrics';
 import {
   renderLoading,
   renderError,
@@ -59,26 +62,6 @@ function waitForPim(timeoutMs = 10_000) {
   });
 }
 
-// ── Schema Fetching ───────────────────────────────────────────────────────────
-
-async function fetchAllFamilies() {
-  debugTime('fetchFamilies');
-  const all = [];
-  let page = 1;
-
-  while (true) {
-    const response = await globalThis.PIM.api.family_v1.list({ page, limit: 100 });
-    const items = response.items ?? [];
-    all.push(...items);
-    debugLog('fetchFamilies', `Page ${page}: ${items.length} families (total: ${all.length})`);
-    if (items.length === 0 || !response.links?.next) break;
-    page++;
-  }
-
-  debugTimeEnd('fetchFamilies');
-  return all;
-}
-
 // ── Metric Visibility ─────────────────────────────────────────────────────────
 
 function getEnabledMetrics(allKeys) {
@@ -99,24 +82,6 @@ function getEnabledMetrics(allKeys) {
   return new Set(allKeys);
 }
 
-// ── Safe Metric Calculation ───────────────────────────────────────────────────
-
-function safeCalculate(fn, context, metricKey) {
-  try {
-    return fn(context);
-  } catch (err) {
-    debugError(`metric.${metricKey}`, err);
-    return {
-      numerator: 0,
-      denominator: 0,
-      percentage: null,
-      label: CONFIG.metrics[metricKey]?.label ?? metricKey,
-      caveat: 'Calculation error — see console for details.',
-      debugInfo: { error: err.message },
-    };
-  }
-}
-
 // ── Phase 2: Fetch products + calculate + render ──────────────────────────────
 
 async function runMetrics(metricsArea, { attributes, families, familyCode }) {
@@ -135,7 +100,7 @@ async function runMetrics(metricsArea, { attributes, families, familyCode }) {
   try {
     const t1 = Date.now();
     debugTime('fetchProducts');
-    products = await fetchProductsByFamily(familyCode);
+    products = await fetchProducts(familyCode);
     debugTimeEnd('fetchProducts');
     timings.fetch = Date.now() - t1;
   } catch (err) {
@@ -146,8 +111,6 @@ async function runMetrics(metricsArea, { attributes, families, familyCode }) {
 
   debugLog('runMetrics', { familyCode, productsFetched: products.length });
 
-  const context = { products, attributes, config: CONFIG };
-
   const ALL_KEYS = ['completeness', 'categorised', 'structuredTypes', 'hasParent', 'hasAssociation', 'hasAssetCollection'];
   const enabledKeys = getEnabledMetrics(ALL_KEYS);
 
@@ -155,7 +118,7 @@ async function runMetrics(metricsArea, { attributes, families, familyCode }) {
 
   let completenessResults;
   try {
-    completenessResults = calculateCompleteness(context);
+    completenessResults = calculateCompleteness(products);
   } catch (err) {
     debugError('metric.completeness', err);
     completenessResults = [{
@@ -168,11 +131,11 @@ async function runMetrics(metricsArea, { attributes, families, familyCode }) {
     }];
   }
 
-  const categorisedResult        = safeCalculate(calculateCategorised,        context, 'categorised');
-  const structuredTypesResult    = safeCalculate(calculateStructuredTypes,    context, 'structuredTypes');
-  const hasParentResult          = safeCalculate(calculateHasParent,          context, 'hasParent');
-  const hasAssociationResult     = safeCalculate(calculateHasAssociation,     context, 'hasAssociation');
-  const hasAssetCollectionResult = safeCalculate(calculateHasAssetCollection, context, 'hasAssetCollection');
+  const categorisedResult        = await runSafe('categorised',        () => calculateCategorised(products));
+  const structuredTypesResult    = await runSafe('structuredTypes',    () => calculateStructuredAttributeTypes(attributes, { structuredAttributeTypes: CONFIG.structuredAttributeTypes }));
+  const hasParentResult          = await runSafe('hasParent',          () => calculateHasParent(products));
+  const hasAssociationResult     = await runSafe('hasAssociation',     () => calculateAssociations(products, attributes, { productLinkAttributeTypes: CONFIG.productLinkAttributeTypes }));
+  const hasAssetCollectionResult = await runSafe('hasAssetCollection', () => calculateAssetCollections(products, attributes, { assetCollectionAttributeType: CONFIG.assetCollectionAttributeType }));
 
   timings.calculate = Date.now() - t2;
 
@@ -197,6 +160,22 @@ async function runMetrics(metricsArea, { attributes, families, familyCode }) {
   debugLog('runMetrics.timings', { familyCode, ...timings });
 }
 
+async function runSafe(metricKey, fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    debugError(`metric.${metricKey}`, err);
+    return {
+      numerator: 0,
+      denominator: 0,
+      percentage: null,
+      label: CONFIG.metrics[metricKey]?.label ?? metricKey,
+      caveat: 'Calculation error — see console for details.',
+      debugInfo: { error: err.message },
+    };
+  }
+}
+
 // ── Phase 1: Fetch schema + render shell ──────────────────────────────────────
 
 async function run(container) {
@@ -206,8 +185,8 @@ async function run(container) {
   try {
     debugTime('fetchSchema');
     [attributes, families] = await Promise.all([
-      fetchAttributeList(),
-      fetchAllFamilies(),
+      fetchAttributes(),
+      fetchFamilies(),
     ]);
     debugTimeEnd('fetchSchema');
   } catch (err) {
